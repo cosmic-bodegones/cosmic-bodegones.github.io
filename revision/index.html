@@ -422,7 +422,7 @@ function refresh(keep){
   if(!$('#drawer').hidden)renderDrawer();
 }
 function save(){LS.set('cosmic_filters',F);}
-function thumb(s){const t=CAT.th[s.fam.f];if(!t)return h('span',{class:'tb'});const r=t.rows.indexOf(s.code),n=t.rows.length;return h('span',{class:'tb',style:`background-image:url("${(SIGN[t.f]||{}).u||''}");background-size:400% ${n*100}%;background-position:${s.vi/3*100}% ${n>1?r/(n-1)*100:0}%`});}
+function thumb(s){const t=CAT.th[s.fam.f];if(!t)return h('span',{class:'tb'});const r=t.rows.indexOf(s.code),n=t.rows.length;return h('span',{class:'tb',style:`background-image:url("${(SIGN[t.f]||{}).u||''}");background-size:${VIEWS.length*100}% ${n*100}%;background-position:${VIEWS.length>1?s.vi/(VIEWS.length-1)*100:0}% ${n>1?r/(n-1)*100:0}%`});}
 function tile(s){
   const st=ST[s.st],c=cms(s),open=c.filter(x=>!x.done).length;
   return h('button',{class:'tile',type:'button',onclick:()=>openV(s.id),'aria-label':`${s.sku} ${VIEWS[s.vi][2]} ${s.fin}. ${st[0]}`},
@@ -440,7 +440,7 @@ function famCard(f){
       !made?h('button',{class:'btn sm',type:'button',onclick:()=>{f.open=!f.open;refresh(true);}},f.open?'Ocultar huecos':'Ver huecos'):null)));
   if(open){
     const tb=h('table',null,h('tr',null,h('th',{text:'Acabado'}),VIEWS.map(v=>h('th',{text:v[2]}))));
-    for(let i=0;i<f.s.length;i++){const row=f.slots.slice(i*4,i*4+4);
+    for(let i=0;i<f.s.length;i++){const nv=VIEWS.length,row=f.slots.slice(i*nv,i*nv+nv);
       tb.append(h('tr',null,h('td',{class:'fn'},h('div',null,sw(row[0].fin),h('span',null,row[0].fin,' ',h('small',{text:row[0].code})))),
         row.map(s=>h('td',null,s.img?h('button',{class:'cell'+(inList.has(s.id)?'':' dim'),type:'button',onclick:()=>openV(s.id),title:`${s.sku} · ${VIEWS[s.vi][2]} · ${ST[s.st][0]}`},thumb(s),h('span',{class:'dot '+ST[s.st][1]})):h('div',{class:'cell miss'+(inList.has(s.id)?'':' dim'),title:s.sku+' · '+VIEWS[s.vi][2]+' · Falta'})))));
     }
@@ -468,6 +468,7 @@ function initFilters(){
   const cc={},tt={},ff={};for(const f of FAMS){cc[f.col]=(cc[f.col]||0)+f.s.length;tt[f.t]=(tt[f.t]||0)+f.s.length;for(const s of f.s)ff[s[1]]=(ff[s[1]]||0)+1;}
   const srt=o=>Object.keys(o).sort((a,b)=>a.localeCompare(b,'es')).map(k=>[k,`${k} (${o[k]})`]);
   fillSelect('#fcol','Todas',srt(cc),F.col);fillSelect('#ftipo','Todas',srt(tt),F.tipo);fillSelect('#ffin','Todos',srt(ff),F.fin);
+  if(F.view!==''&&+F.view>=VIEWS.length)F.view='';
   fillSelect('#fview','Todas',VIEWS.map((v,i)=>[String(i),v[2]]),F.view);
   $('#fsort').value=F.sort;$('#fq').value=F.q;$('#fbox').open=window.innerWidth>700;
   const on=(id,k)=>$(id).addEventListener('change',e=>{F[k]=e.target.value;save();refresh();});
