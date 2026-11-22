@@ -92,6 +92,7 @@ button{cursor:pointer}
 .pill{position:absolute;left:7px;top:7px;max-width:calc(100% - 14px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font:600 11px/1 var(--font-d);letter-spacing:.02em;padding:5px 8px;border-radius:999px;color:#fff;background:var(--rev)}
 .pill.ok{background:var(--ok)}.pill.chg{background:var(--chg)}.pill.fix{background:var(--fix)}.pill.rev{background:rgba(22,25,28,.62)}
 .cm{position:absolute;right:7px;bottom:7px;font:500 11px/1 var(--font-m);padding:5px 7px;border-radius:999px;background:#fff;color:#16191C;display:inline-flex;gap:4px;align-items:center}
+.hdb{position:absolute;right:7px;top:7px;font:600 10px/1 var(--font-d);letter-spacing:.04em;padding:4px 6px;border-radius:4px;background:rgba(13,14,15,.62);color:#fff}
 .new{position:absolute;left:8px;bottom:8px;width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px #fff}
 .cap{padding:8px 10px 9px;display:flex;flex-direction:column;gap:2px;min-width:0}
 .cap .s{font:500 12.5px var(--font-m)}
@@ -130,6 +131,10 @@ button{cursor:pointer}
 .ib[aria-pressed="true"]{background:#ECEEEF;color:#0D0E0F;border-color:#ECEEEF}
 .ib svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .ib.t{width:auto;padding:0 11px;font-size:13px;font-weight:500;gap:6px}
+.rseg{display:inline-flex;height:38px;border:1px solid var(--vl);border-radius:8px;overflow:hidden;flex:none}
+.rseg button{border:0;background:transparent;color:inherit;padding:0 10px;font-size:13px;font-weight:500;min-width:44px}
+.rseg button[aria-pressed="true"]{background:#ECEEEF;color:#0D0E0F}
+.rseg button:disabled{color:var(--vm);cursor:default}
 .vbody{flex:1;display:flex;min-height:0}
 .stage{flex:1;position:relative;overflow:hidden;min-width:0;touch-action:none;background:#0D0E0F}
 .wrap{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;background:#D9D3C9}
@@ -183,7 +188,7 @@ button{cursor:pointer}
   .panel{width:auto;flex:1 1 46%;border-left:0;border-top:1px solid var(--vl)}
   #viewer.drawing .panel{display:none}
   .nav{display:none}
-  .vtop{flex-wrap:wrap}.vtop .ttl{order:9;flex:1 0 100%}.vtop #vPos{margin-left:auto}
+  .vtop{flex-wrap:wrap}.rseg button{padding:0 8px;min-width:38px}.vtop .ttl{order:9;flex:1 0 100%}.vtop #vPos{margin-left:auto}
 }
 
 /* cajón de revisión */
@@ -264,6 +269,7 @@ button{cursor:pointer}
     <div class="ttl"><b id="vSku"></b><span id="vSub"></span></div>
     <span class="mono" id="vPos" style="font-size:12.5px;color:var(--vm)"></span>
     <button class="ib t" id="vRef" type="button" aria-pressed="false" title="Comparar con la foto de producto">Foto original</button>
+    <div class="rseg" id="vRes" role="group" aria-label="Resolución" hidden><button type="button" id="vLo" aria-pressed="true" title="Resolución de revisión (1120×1400)">Baja</button><button type="button" id="vHi" aria-pressed="false" title="Alta resolución (3580×4475)">4K</button></div>
     <button class="ib" id="vAnn" type="button" aria-pressed="true" aria-label="Mostrar u ocultar anotaciones" title="Anotaciones"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
     <button class="ib" id="vFs" type="button" aria-label="Pantalla completa" title="Pantalla completa"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     <button class="ib" id="vPanel" type="button" aria-pressed="true" aria-label="Mostrar u ocultar el panel" title="Panel"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
@@ -370,7 +376,14 @@ async function signed(p){const c=SIGN[p];if(c&&c.t>Date.now())return c.u;const{d
 async function signSprites(){const paths=Object.values(CAT.th).map(t=>t.f);if(!paths.length)return;const{data,error}=await sb.storage.from(CFG.bucket).createSignedUrls(paths,43200);if(error)throw error;
   data.forEach(d=>{if(d.signedUrl)SIGN[d.path]={u:d.signedUrl,t:Date.now()+4e7};});signedAt=Date.now();}
 let srcTok=0;
-async function setSrc(p){const k=++srcTok;vimg.removeAttribute('src');try{const u=await signed(p);if(k===srcTok)vimg.src=u;}catch(e){if(k===srcTok)toast('No se ha podido cargar la imagen.');}}
+async function setSrc(p,hd){const k=++srcTok;vimg.removeAttribute('src');const tag=$('#vTag');
+  try{const u=await signed(p);if(k!==srcTok)return;vimg.src=u;
+    if(hd){const hu=await signed(hd);if(k!==srcTok)return;tag.hidden=false;tag.textContent='Cargando 4K…';
+      const im=new Image();im.onload=()=>{if(k!==srcTok)return;vimg.src=hu;tag.textContent='4K · 3580 × 4475';clearTimeout(V.tagT);V.tagT=setTimeout(()=>{if(k===srcTok&&tag.textContent.startsWith('4K'))tag.hidden=true;},1800);};
+      im.onerror=()=>{if(k===srcTok){tag.hidden=true;toast('No se ha podido cargar la versión 4K.');}};im.src=hu;}
+  }catch(e){if(k===srcTok)toast('No se ha podido cargar la imagen.');}}
+function hasHd(s,v){return !!(s&&s.img&&s.img.h&&s.img.h.includes(v));}
+function setRes(hd){V.hd=hd;LS.set('cosmic_hd',hd);showImg();}
 
 /* ---------- filtros y lista ---------- */
 function passBase(s){
@@ -426,7 +439,7 @@ function thumb(s){const t=CAT.th[s.fam.f];if(!t)return h('span',{class:'tb'});co
 function tile(s){
   const st=ST[s.st],c=cms(s),open=c.filter(x=>!x.done).length;
   return h('button',{class:'tile',type:'button',onclick:()=>openV(s.id),'aria-label':`${s.sku} ${VIEWS[s.vi][2]} ${s.fin}. ${st[0]}`},
-    s.img?h('span',{class:'ph'},thumb(s),s.st!=='revisar'?h('span',{class:'pill '+st[1],text:st[0]}):null,c.length?h('span',{class:'cm',text:(open||c.length)+(open?' cambio'+(open>1?'s':''):' resuelto'+(c.length>1?'s':''))}):null,unseen(s)?h('span',{class:'new',title:'Sin ver'}):null)
+    s.img?h('span',{class:'ph'},thumb(s),s.st!=='revisar'?h('span',{class:'pill '+st[1],text:st[0]}):null,c.length?h('span',{class:'cm',text:(open||c.length)+(open?' cambio'+(open>1?'s':''):' resuelto'+(c.length>1?'s':''))}):null,unseen(s)?h('span',{class:'new',title:'Sin ver'}):null,hasHd(s,s.img.v)?h('span',{class:'hdb',title:'Disponible en 4K',text:'4K'}):null)
          :h('span',{class:'ph miss'},h('span',{text:'Falta'})),
     h('span',{class:'cap'},h('span',{class:'s',text:s.sku}),h('span',{class:'v'},sw(s.fin),h('span',{text:VIEWS[s.vi][2]+' · '+s.fin}))));
 }
@@ -490,7 +503,7 @@ function bulkAsk(){
 }
 
 /* ---------- visor ---------- */
-const V={cur:null,ver:0,ref:false,ann:true,draw:false,pen:0,w:5,strokes:[],live:null,sel:null,z:1,tx:0,ty:0,bx:0,by:0,bw:0,bh:0,idx:0,cf:false};
+const V={hd:LS.get('cosmic_hd',false),cur:null,ver:0,ref:false,ann:true,draw:false,pen:0,w:5,strokes:[],live:null,sel:null,z:1,tx:0,ty:0,bx:0,by:0,bw:0,bh:0,idx:0,cf:false};
 const stage=$('#stage'),wrap=$('#wrap'),cv=$('#cv'),ctx=cv.getContext('2d'),vimg=$('#vImg');
 function hashOf(id){return id.replace(/_/g,'-');}
 function openV(id,noHash){
@@ -508,10 +521,14 @@ function showImg(){
   const s=V.cur;$('#vSku').textContent=s.sku+'  ·  '+VIEWS[s.vi][2];$('#vSub').textContent=s.fam.d+' · '+s.fam.col+' · '+s.fin;
   const i=list.indexOf(s);$('#vPos').textContent=i>=0?`${i+1}/${list.length}`:'';
   const hasRef=CAT.ref.includes(s.sku);$('#vRef').hidden=!hasRef;$('#vRef').setAttribute('aria-pressed',String(V.ref));
+  const res=$('#vRes'),okHd=!V.ref&&hasHd(s,V.ver);res.hidden=!s.img||V.ref;$('#vHi').disabled=!okHd;
+  $('#vHi').title=okHd?'Alta resolución (3580×4475)':'Esta imagen aún no tiene versión 4K';
+  $('#vLo').setAttribute('aria-pressed',String(!(V.hd&&okHd)));$('#vHi').setAttribute('aria-pressed',String(V.hd&&okHd));
   const tag=$('#vTag');
   if(V.ref){vimg.hidden=false;setSrc(`ref/${s.sku}.jpg`);wrap.classList.remove('none');tag.hidden=false;tag.textContent='Foto de producto original (referencia de acabado)';cv.hidden=true;}
-  else if(s.img){vimg.hidden=false;setSrc(`img/${s.id}.v${V.ver}.jpg`);wrap.classList.remove('none');cv.hidden=false;
-    tag.hidden=V.ver===s.img.v;tag.textContent=`Versión anterior (v${V.ver}). La actual es la v${s.img.v}.`;}
+  else if(s.img){vimg.hidden=false;wrap.classList.remove('none');cv.hidden=false;
+    tag.hidden=V.ver===s.img.v;tag.textContent=`Versión anterior (v${V.ver}). La actual es la v${s.img.v}.`;
+    setSrc(`img/${s.id}.v${V.ver}.jpg`,V.hd&&hasHd(s,V.ver)?`hd/${s.id}.v${V.ver}.jpg`:null);}
   else{srcTok++;vimg.hidden=true;vimg.removeAttribute('src');cv.hidden=true;tag.hidden=true;wrap.classList.add('none');
     if(!wrap.querySelector('p'))wrap.append(h('p',{text:''}));wrap.querySelector('p').textContent='Imagen pendiente de crear';}
   const p=wrap.querySelector('p');if(p)p.hidden=!!(s.img||V.ref);
@@ -613,6 +630,7 @@ $('#cDraw').onclick=()=>{if(V.ref||V.ver!==V.cur.img.v){V.ref=false;V.ver=V.cur.
 $('#cSend').onclick=async()=>{const s=V.cur,t=$('#cText').value.trim();if(!s||!s.img||(!t&&!V.strokes.length))return;const k=V.strokes;$('#cSend').disabled=true;
   try{await addCm(s,t,k);$('#cText').value='';V.strokes=[];setDraw(false);paint();toast(mode==='local'?'Cambio guardado en este navegador.':'Cambio guardado.');}catch(e){}updSend();};
 $('#vClose').onclick=closeV;$('#vPrev').onclick=()=>step(-1);$('#vNext').onclick=()=>step(1);
+$('#vLo').onclick=()=>setRes(false);$('#vHi').onclick=()=>setRes(true);
 $('#vRef').onclick=()=>{V.ref=!V.ref;if(V.ref)setDraw(false);showImg();renderPanel();};
 $('#vAnn').onclick=e=>{V.ann=!V.ann;e.currentTarget.setAttribute('aria-pressed',String(V.ann));paint();};
 $('#vPanel').onclick=e=>{const v=$('#viewer');v.classList.toggle('hidep');e.currentTarget.setAttribute('aria-pressed',String(!v.classList.contains('hidep')));requestAnimationFrame(layout);};
