@@ -166,6 +166,15 @@ button{cursor:pointer}
 .vb.go{background:#ECEEEF;border-color:#ECEEEF;color:#0D0E0F}
 .vb.sm{padding:5px 9px;font-size:12.5px;border-radius:7px}
 .vb[disabled]{opacity:.4;cursor:default}
+.kseg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border:1px solid var(--vl);border-radius:10px}
+.kseg button{font:600 12.5px var(--font);color:var(--vm);background:none;border:0;border-radius:7px;padding:7px 6px;cursor:pointer;display:flex;flex-direction:column;gap:2px;align-items:center;text-align:center}
+.kseg button small{font-weight:400;font-size:11px;opacity:.85}
+.kseg button[aria-pressed=true]{background:#ECEEEF;color:#16191C}
+.reply{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--vm);border-left:2px solid #6C8EBF;padding-left:8px}
+.cmt.com .num{background:#6C8EBF}
+.cmt.priv{border-style:dashed}
+.cmt .tag{font:600 10.5px var(--font-m);letter-spacing:.02em;padding:2px 6px;border-radius:999px;border:1px solid var(--vl);color:#ECEEEF}
+.cmt .tag.p{border-color:#C9A227;color:#E7C65A}
 .cmt{border:1px solid var(--vl);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
 .cmt.done{opacity:.62}
 .cmt.sel{border-color:#ECEEEF}
@@ -285,9 +294,11 @@ button{cursor:pointer}
     <aside class="panel" id="panel">
       <div id="pMeta"></div>
       <div id="pStatus"></div>
-      <div><h4>Cambios pedidos en esta imagen</h4><div id="pCms" style="display:flex;flex-direction:column;gap:8px"></div></div>
+      <div><h4 id="pCmsT">Cambios pedidos en esta imagen</h4><div id="pCms" style="display:flex;flex-direction:column;gap:8px"></div></div>
       <div class="comp" id="pComp">
-        <h4 style="margin:0">Pedir un cambio</h4>
+        <h4 style="margin:0" id="cTitle">Pedir un cambio</h4>
+        <div class="kseg" id="cKind" role="group" aria-label="Tipo de nota" hidden><button type="button" id="kChg" aria-pressed="true">Pedir un cambio<small>Privado · solo tú</small></button><button type="button" id="kCom" aria-pressed="false">Dejar un comentario<small>Lo ve el cliente</small></button></div>
+        <div class="reply" id="cReply" hidden><span id="cReplyT"></span><button type="button" class="vb sm" id="cReplyX">Quitar</button></div>
         <textarea id="cText" placeholder="Describe el cambio. Si ayuda, marca la zona dibujando sobre la imagen."></textarea>
         <div class="r">
           <button class="vb" id="cDraw" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4-1L19 8l-3-3L5 16l-1 4z"/></svg><span id="cDrawT">Dibujar sobre la imagen</span></button>
@@ -340,10 +351,12 @@ function build(){
 }
 function rv(sku){return REV[sku];}
 function cms(s){const r=rv(s.sku);if(!r||!r.c)return[];const vk=VK[s.vi],o=[];for(const id in r.c){const c=r.c[id];if(c&&c.view===vk&&!c.del)o.push(Object.assign({id},c));}return o.sort((a,b)=>(a.at||0)-(b.at||0));}
+function isChg(x){return x.tipo!=='comentario';}
+function chgs(s){return cms(s).filter(isChg);}
 function stOf(s){
   if(!s.img)return'falta';
   const r=rv(s.sku);if(!r)return'revisar';
-  const c=cms(s);if(c.some(x=>!x.done))return'cambios';
+  const c=chgs(s);if(c.some(x=>!x.done))return'cambios';
   const st=r.st&&r.st[VK[s.vi]];
   if(st&&st.s==='ok'&&st.v===s.img.v)return'ok';
   if(c.length||(st&&st.s==='ok'))return'corregida';
@@ -356,12 +369,12 @@ function ent(sku){return REV[sku]||(REV[sku]={st:{},c:{}});}
 function stamp(){return{by:me,author:myName,role:isAdmin?'e':'c'};}
 function fail(e){toast('No se ha podido guardar. Comprueba la conexión y vuelve a intentarlo.');console.error(e);throw e;}
 function applyStatus(r){const s=BYID[r.slot];if(!s)return;ent(s.sku).st[VK[s.vi]]={s:r.s,v:r.v,by:r.by,who:r.author,role:r.role,at:Date.parse(r.at)};}
-function applyComment(r){const s=BYID[r.slot];if(!s)return;ent(s.sku).c[r.id]={view:VK[s.vi],v:r.v,text:r.text,k:r.strokes||[],by:r.by,who:r.author,role:r.role,at:Date.parse(r.at),done:!!r.done,doneAt:r.done_at?Date.parse(r.done_at):null,doneV:r.done_v,note:r.note,del:!!r.deleted};}
+function applyComment(r){const s=BYID[r.slot];if(!s)return;ent(s.sku).c[r.id]={view:VK[s.vi],v:r.v,text:r.text,k:r.strokes||[],by:r.by,who:r.author,role:r.role,at:Date.parse(r.at),done:!!r.done,doneAt:r.done_at?Date.parse(r.done_at):null,doneV:r.done_v,note:r.note,del:!!r.deleted,priv:!!r.priv,tipo:r.tipo||'cambio',parent:r.parent||null};}
 async function setOk(s,on){const row=Object.assign({slot:s.id,s:on?'ok':'',v:s.img.v,at:new Date().toISOString()},stamp());
   const{error}=await sb.from('rev_status').upsert(row);if(error)fail(error);applyStatus(row);refresh(true);}
 async function setOkMany(slots){const rows=slots.map(s=>Object.assign({slot:s.id,s:'ok',v:s.img.v,at:new Date().toISOString()},stamp()));
   for(let i=0;i<rows.length;i+=200){const{error}=await sb.from('rev_status').upsert(rows.slice(i,i+200));if(error)fail(error);}rows.forEach(applyStatus);refresh(true);}
-async function addCm(s,text,strokes){const row=Object.assign({slot:s.id,v:s.img.v,text,strokes},stamp());
+async function addCm(s,text,strokes,ex){const row=Object.assign({slot:s.id,v:s.img.v,text,strokes},stamp(),ex||{});
   const{data,error}=await sb.from('rev_comments').insert(row).select().single();if(error)fail(error);applyComment(data);refresh(true);}
 const CMAP={done:'done',doneAt:'done_at',doneV:'done_v',note:'note',del:'deleted'};
 async function patchCm(s,id,d){const u={};for(const k in d)u[CMAP[k]]=k==='doneAt'?new Date(d[k]).toISOString():d[k];
@@ -437,7 +450,7 @@ function refresh(keep){
 function save(){LS.set('cosmic_filters',F);}
 function thumb(s){const t=CAT.th[s.fam.f];if(!t)return h('span',{class:'tb'});const r=t.rows.indexOf(s.code),n=t.rows.length;return h('span',{class:'tb',style:`background-image:url("${(SIGN[t.f]||{}).u||''}");background-size:${VIEWS.length*100}% ${n*100}%;background-position:${VIEWS.length>1?s.vi/(VIEWS.length-1)*100:0}% ${n>1?r/(n-1)*100:0}%`});}
 function tile(s){
-  const st=ST[s.st],c=cms(s),open=c.filter(x=>!x.done).length;
+  const st=ST[s.st],c=chgs(s),open=c.filter(x=>!x.done).length;
   return h('button',{class:'tile',type:'button',onclick:()=>openV(s.id),'aria-label':`${s.sku} ${VIEWS[s.vi][2]} ${s.fin}. ${st[0]}`},
     s.img?h('span',{class:'ph'},thumb(s),s.st!=='revisar'?h('span',{class:'pill '+st[1],text:st[0]}):null,c.length?h('span',{class:'cm',text:(open||c.length)+(open?' cambio'+(open>1?'s':''):' resuelto'+(c.length>1?'s':''))}):null,unseen(s)?h('span',{class:'new',title:'Sin ver'}):null,hasHd(s,s.img.v)?h('span',{class:'hdb',title:'Disponible en 4K',text:'4K'}):null)
          :h('span',{class:'ph miss'},h('span',{text:'Falta'})),
@@ -604,7 +617,7 @@ function renderPanel(){
     h('h4',{style:'margin-top:12px',text:'Vistas'}),h('div',{class:'tabs'},sibV.map(x=>h('button',{class:'tab'+(x.img?'':' miss'),type:'button','aria-pressed':String(x===s),onclick:()=>openV(x.id)},h('span',{class:'dot '+ST[stOf(x)][1]}),VIEWS[x.vi][2]))),
     h('h4',{style:'margin-top:12px',text:`Acabados (${sibF.length})`}),h('div',{class:'tabs'},sibF.map(x=>h('button',{class:'tab'+(x.img?'':' miss'),type:'button','aria-pressed':String(x===s),title:x.sku,onclick:()=>openV(x.id)},sw(x.fin),x.fin))),
     s.img&&s.img.vs?h('div',null,h('h4',{style:'margin-top:12px',text:'Versiones'}),h('div',{class:'tabs'},s.img.vs.map(v=>h('button',{class:'tab',type:'button','aria-pressed':String(V.ver===v[0]&&!V.ref),onclick:()=>{V.ver=v[0];V.ref=false;showImg();renderPanel();}},'v'+v[0]+' · '+v[1].slice(8)+'/'+v[1].slice(5,7)+(v[0]===s.img.v?' (actual)':''))))):null].filter(Boolean));
-  const c=cms(s),open=c.filter(x=>!x.done);const cur=stOf(s);
+  const c=cms(s),open=c.filter(x=>isChg(x)&&!x.done);const cur=stOf(s);
   const box=h('div',{class:'stbox'},h('div',{class:'now'},h('span',{class:'dot '+st[1]}),st[0],s.img?h('span',{class:'m',style:'font-weight:400',text:' · v'+s.img.v+' del '+s.img.d.slice(8)+'/'+s.img.d.slice(5,7)}):null));
   if(s.img){
     if(V.cf)box.append(h('div',{class:'cf'},`Hay ${open.length} cambio${open.length>1?'s':''} sin resolver. Si das el OK se marcan como retirados.`,h('div',{class:'acts'},
@@ -616,19 +629,41 @@ function renderPanel(){
     if(cur==='corregida')box.append(h('p',{class:'hint',text:'El estudio ha aplicado los cambios pedidos. Revisa la imagen y da el OK o pide otro cambio.'}));
   }else box.append(h('p',{class:'hint',text:'Esta imagen todavía no está creada. Aparecerá aquí cuando el estudio la suba.'}));
   $('#pStatus').replaceChildren(box);
-  $('#pCms').replaceChildren(...(c.length?c.map((x,i)=>h('div',{class:'cmt'+(x.done?' done':'')+(V.sel===x.id?' sel':'')},
-    h('div',{class:'h'},h('span',{class:'num',text:i+1}),h('b',{text:nameOf(x)}),fdate(x.at),' · v'+x.v,x.loc?h('span',{class:'loc',text:'Sin enviar'}):null,x.done?h('span',{text:'· Resuelto'+(x.doneV?' en v'+x.doneV:'')}):null),
+  $('#pCms').replaceChildren(...(c.length?c.map((x,i)=>h('div',{class:'cmt'+(x.done&&isChg(x)?' done':'')+(V.sel===x.id?' sel':'')+(isChg(x)?'':' com')+(x.priv?' priv':'')},
+    h('div',{class:'h'},h('span',{class:'num',text:i+1}),h('b',{text:nameOf(x)}),fdate(x.at),' · v'+x.v,x.loc?h('span',{class:'loc',text:'Sin enviar'}):null,
+      isChg(x)?null:h('span',{class:'tag',text:'Comentario'}),x.priv?h('span',{class:'tag p',text:'Privado'}):null,
+      x.parent&&c.findIndex(y=>y.id===x.parent)>=0?h('span',{text:'· responde a #'+(c.findIndex(y=>y.id===x.parent)+1)}):null,
+      x.done&&isChg(x)?h('span',{text:'· Resuelto'+(x.doneV?' en v'+x.doneV:'')}):null),
     x.text?h('p',{text:x.text}):null,x.note?h('p',{class:'hint',text:x.note}):null,
     h('div',{class:'a'},x.k&&x.k.length?h('button',{class:'vb sm',type:'button',onclick:()=>{V.sel=V.sel===x.id?null:x.id;V.ann=true;$('#vAnn').setAttribute('aria-pressed','true');if(V.ver!==s.img.v||V.ref){V.ref=false;showImg();}paint();renderPanel();}},V.sel===x.id?'Ver todos los dibujos':'Ver su dibujo'):null,
-      x.done?h('button',{class:'vb sm',type:'button',onclick:()=>patchCm(s,x.id,{done:false})},'No está resuelto'):(isAdmin?h('button',{class:'vb sm',type:'button',onclick:()=>patchCm(s,x.id,{done:true,doneAt:Date.now(),doneV:s.img.v})},'Marcar resuelto'):null),
-      (!x.done&&(x.loc||(me&&x.by===me)||isAdmin))?h('button',{class:'vb sm',type:'button',onclick:()=>patchCm(s,x.id,{del:true})},'Eliminar'):null))):[h('p',{class:'hint',text:'Ninguno por ahora.'})]));
-  $('#cHint').textContent=mode==='local'?'Este comentario se guarda en este navegador. Envíalo al estudio desde «Cambios pedidos».':'Los cambios se guardan en una lista. El estudio los aplica por tandas y aquí verás la imagen corregida.';
+      !isChg(x)?null:x.done?h('button',{class:'vb sm',type:'button',onclick:()=>patchCm(s,x.id,{done:false})},'No está resuelto'):(isAdmin?h('button',{class:'vb sm',type:'button',onclick:()=>patchCm(s,x.id,{done:true,doneAt:Date.now(),doneV:s.img.v})},'Marcar resuelto'):null),
+      isAdmin&&!x.priv&&x.by!==me?h('button',{class:'vb sm',type:'button',onclick:()=>{C.reply=x.id;C.replyN=i+1;C.kind='comentario';updKind();$('#cText').focus({preventScroll:true});}},'Responder'):null,
+      ((!x.done||!isChg(x))&&(x.loc||(me&&x.by===me)||isAdmin))?h('button',{class:'vb sm',type:'button',onclick:()=>patchCm(s,x.id,{del:true})},'Eliminar'):null))):[h('p',{class:'hint',text:'Ninguno por ahora.'})]));
+  $('#pCmsT').textContent=c.some(x=>!isChg(x))?'Cambios y comentarios':'Cambios pedidos en esta imagen';
+  updKind();
+  if(!isAdmin)$('#cHint').textContent=mode==='local'?'Este comentario se guarda en este navegador. Envíalo al estudio desde «Cambios pedidos».':'Los cambios se guardan en una lista. El estudio los aplica por tandas y aquí verás la imagen corregida.';
   updSend();
 }
 $('#cText').addEventListener('input',updSend);
 $('#cDraw').onclick=()=>{if(V.ref||V.ver!==V.cur.img.v){V.ref=false;V.ver=V.cur.img.v;showImg();renderPanel();}setDraw(!V.draw);};
 $('#cSend').onclick=async()=>{const s=V.cur,t=$('#cText').value.trim();if(!s||!s.img||(!t&&!V.strokes.length))return;const k=V.strokes;$('#cSend').disabled=true;
-  try{await addCm(s,t,k);$('#cText').value='';V.strokes=[];setDraw(false);paint();toast(mode==='local'?'Cambio guardado en este navegador.':'Cambio guardado.');}catch(e){}updSend();};
+  const ex=isAdmin?(C.kind==='comentario'?{tipo:'comentario',priv:false,parent:C.reply||null}:{tipo:'cambio',priv:true}):null;
+  try{await addCm(s,t,k,ex);$('#cText').value='';V.strokes=[];setDraw(false);paint();
+    toast(mode==='local'?'Cambio guardado en este navegador.':!isAdmin?'Cambio guardado.':C.kind==='comentario'?'Comentario publicado. El cliente lo verá.':'Cambio guardado en privado.');
+    if(isAdmin){C.reply=null;updKind();}}catch(e){}updSend();};
+/* admin: pedir un cambio (privado) o dejar un comentario (publico) */
+const C={kind:LS.get('cosmic_kind','cambio'),reply:null,replyN:0};
+function updKind(){const a=isAdmin&&mode!=='local';$('#cKind').hidden=!a;
+  if(!a){$('#cTitle').hidden=false;$('#cReply').hidden=true;return;}
+  $('#cTitle').hidden=true;const com=C.kind==='comentario';
+  $('#kChg').setAttribute('aria-pressed',String(!com));$('#kCom').setAttribute('aria-pressed',String(com));
+  $('#cSend').textContent=com?'Publicar comentario':'Guardar cambio';
+  $('#cText').placeholder=com?'Escribe un comentario para el cliente.':'Describe el cambio. Si ayuda, marca la zona dibujando sobre la imagen.';
+  $('#cHint').textContent=com?'Lo verá el cliente en esta imagen. No pide ningún cambio ni cambia el estado.':'Privado: el cliente no lo ve. Queda en tu lista de cambios y la imagen pasa a «Pendiente de corrección» solo para ti.';
+  $('#cReply').hidden=!(com&&C.reply);$('#cReplyT').textContent=C.reply?'Respondiendo al #'+C.replyN:'';}
+$('#kChg').onclick=()=>{C.kind='cambio';C.reply=null;LS.set('cosmic_kind',C.kind);updKind();};
+$('#kCom').onclick=()=>{C.kind='comentario';LS.set('cosmic_kind',C.kind);updKind();};
+$('#cReplyX').onclick=()=>{C.reply=null;updKind();};
 $('#vClose').onclick=closeV;$('#vPrev').onclick=()=>step(-1);$('#vNext').onclick=()=>step(1);
 $('#vLo').onclick=()=>setRes(false);$('#vHi').onclick=()=>setRes(true);
 $('#vRef').onclick=()=>{V.ref=!V.ref;if(V.ref)setDraw(false);showImg();renderPanel();};
@@ -641,7 +676,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#drawer').hidde
   if(e.key==='ArrowRight')step(1);else if(e.key==='ArrowLeft')step(-1);else if(e.key==='Escape'){if(V.draw)setDraw(false);else if(!$('#drawer').hidden)$('#drawer').hidden=true;else closeV();}});
 
 /* ---------- cajón: cambios pedidos y accesos ---------- */
-function pending(){const o=[];for(const s of SLOTS){if(!s.img)continue;for(const c of cms(s))if(!c.done)o.push({s,c});}return o;}
+function pending(){const o=[];for(const s of SLOTS){if(!s.img)continue;for(const c of chgs(s))if(!c.done)o.push({s,c});}return o;}
 function copy(text,okMsg,ta){const fb=()=>{if(ta){ta.hidden=false;ta.value=text;ta.focus();ta.select();toast('Copia el texto seleccionado.');}};
   try{navigator.clipboard.writeText(text).then(()=>toast(okMsg),fb);}catch(e){fb();}}
 function renderDrawer(){
