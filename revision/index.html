@@ -165,6 +165,8 @@ button{cursor:pointer}
 .vb.ok{background:#1F7A4D;border-color:#1F7A4D;color:#fff}
 .vb.go{background:#ECEEEF;border-color:#ECEEEF;color:#0D0E0F}
 .vb.sm{padding:5px 9px;font-size:12.5px;border-radius:7px}
+a.vb{text-decoration:none;display:inline-flex;align-items:center;gap:6px;color:inherit}
+.acts.adm{margin-top:8px;padding-top:8px;border-top:1px dashed rgba(0,0,0,.15)}
 .vb[disabled]{opacity:.4;cursor:default}
 .kseg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border:1px solid var(--vl);border-radius:10px}
 .kseg button{font:600 12.5px var(--font);color:var(--vm);background:none;border:0;border-radius:7px;padding:7px 6px;cursor:pointer;display:flex;flex-direction:column;gap:2px;align-items:center;text-align:center}
@@ -358,7 +360,7 @@ function stOf(s){
   const r=rv(s.sku);if(!r)return'revisar';
   const c=chgs(s);if(c.some(x=>!x.done))return'cambios';
   const st=r.st&&r.st[VK[s.vi]];
-  if(st&&st.s==='ok'&&st.v===s.img.v)return'ok';
+  if(st&&st.s==='ok'&&(st.v===s.img.v||st.vmax===s.img.v))return'ok';
   if(c.length||(st&&st.s==='ok'))return'corregida';
   return'revisar';
 }
@@ -368,11 +370,11 @@ function unseen(s){return s.img&&SEEN[s.id]!==s.img.v;}
 function ent(sku){return REV[sku]||(REV[sku]={st:{},c:{}});}
 function stamp(){return{by:me,author:myName,role:isAdmin?'e':'c'};}
 function fail(e){toast('No se ha podido guardar. Comprueba la conexión y vuelve a intentarlo.');console.error(e);throw e;}
-function applyStatus(r){const s=BYID[r.slot];if(!s)return;ent(s.sku).st[VK[s.vi]]={s:r.s,v:r.v,by:r.by,who:r.author,role:r.role,at:Date.parse(r.at)};}
+function applyStatus(r){const s=BYID[r.slot];if(!s)return;ent(s.sku).st[VK[s.vi]]={s:r.s,v:r.v,vmax:r.vmax,by:r.by,who:r.author,role:r.role,at:Date.parse(r.at)};}
 function applyComment(r){const s=BYID[r.slot];if(!s)return;ent(s.sku).c[r.id]={view:VK[s.vi],v:r.v,text:r.text,k:r.strokes||[],by:r.by,who:r.author,role:r.role,at:Date.parse(r.at),done:!!r.done,doneAt:r.done_at?Date.parse(r.done_at):null,doneV:r.done_v,note:r.note,del:!!r.deleted,priv:!!r.priv,tipo:r.tipo||'cambio',parent:r.parent||null};}
-async function setOk(s,on){const row=Object.assign({slot:s.id,s:on?'ok':'',v:s.img.v,at:new Date().toISOString()},stamp());
+async function setOk(s,on,v){const row=Object.assign({slot:s.id,s:on?'ok':'',v:v||s.img.v,vmax:s.img.v,at:new Date().toISOString()},stamp());
   const{error}=await sb.from('rev_status').upsert(row);if(error)fail(error);applyStatus(row);refresh(true);}
-async function setOkMany(slots){const rows=slots.map(s=>Object.assign({slot:s.id,s:'ok',v:s.img.v,at:new Date().toISOString()},stamp()));
+async function setOkMany(slots){const rows=slots.map(s=>Object.assign({slot:s.id,s:'ok',v:s.img.v,vmax:s.img.v,at:new Date().toISOString()},stamp()));
   for(let i=0;i<rows.length;i+=200){const{error}=await sb.from('rev_status').upsert(rows.slice(i,i+200));if(error)fail(error);}rows.forEach(applyStatus);refresh(true);}
 async function addCm(s,text,strokes,ex){const row=Object.assign({slot:s.id,v:s.img.v,text,strokes},stamp(),ex||{});
   const{data,error}=await sb.from('rev_comments').insert(row).select().single();if(error)fail(error);applyComment(data);refresh(true);}
@@ -395,6 +397,8 @@ async function setSrc(p,hd){const k=++srcTok;vimg.removeAttribute('src');const t
       const im=new Image();im.onload=()=>{if(k!==srcTok)return;vimg.src=hu;tag.textContent='4K · 3580 × 4475';clearTimeout(V.tagT);V.tagT=setTimeout(()=>{if(k===srcTok&&tag.textContent.startsWith('4K'))tag.hidden=true;},1800);};
       im.onerror=()=>{if(k===srcTok){tag.hidden=true;toast('No se ha podido cargar la versión 4K.');}};im.src=hu;}
   }catch(e){if(k===srcTok)toast('No se ha podido cargar la imagen.');}}
+function ip(d,s,v){const r=s.img&&s.img.r&&s.img.r[v];return `${d}/${s.id}.v${v}${r?'.r'+r:''}.jpg`;}
+function okV(s){const r=rv(s.sku),st=r&&r.st&&r.st[VK[s.vi]];return st&&st.s==='ok'&&s.img&&(st.v===s.img.v||st.vmax===s.img.v)?st.v:0;}
 function hasHd(s,v){return !!(s&&s.img&&s.img.h&&s.img.h.includes(v));}
 function setRes(hd){V.hd=hd;LS.set('cosmic_hd',hd);showImg();}
 
@@ -540,8 +544,8 @@ function showImg(){
   const tag=$('#vTag');
   if(V.ref){vimg.hidden=false;setSrc(`ref/${s.sku}.jpg`);wrap.classList.remove('none');tag.hidden=false;tag.textContent='Foto de producto original (referencia de acabado)';cv.hidden=true;}
   else if(s.img){vimg.hidden=false;wrap.classList.remove('none');cv.hidden=false;
-    tag.hidden=V.ver===s.img.v;tag.textContent=`Versión anterior (v${V.ver}). La actual es la v${s.img.v}.`;
-    setSrc(`img/${s.id}.v${V.ver}.jpg`,V.hd&&hasHd(s,V.ver)?`hd/${s.id}.v${V.ver}.jpg`:null);}
+    tag.hidden=V.ver===s.img.v;tag.textContent=`Versión anterior (v${V.ver}). La actual es la v${s.img.v}.`+(okV(s)===V.ver?' Tiene el OK.':'');
+    setSrc(ip('img',s,V.ver),V.hd&&hasHd(s,V.ver)?ip('hd',s,V.ver):null);}
   else{srcTok++;vimg.hidden=true;vimg.removeAttribute('src');cv.hidden=true;tag.hidden=true;wrap.classList.add('none');
     if(!wrap.querySelector('p'))wrap.append(h('p',{text:''}));wrap.querySelector('p').textContent='Imagen pendiente de crear';}
   const p=wrap.querySelector('p');if(p)p.hidden=!!(s.img||V.ref);
@@ -616,17 +620,22 @@ function renderPanel(){
     h('div',{class:'d',text:f.d}),h('div',{class:'m'},h('span',{class:'mono',text:s.sku}),' · '+f.col+' · '+f.t+(s.dim?' · '+s.dim:'')),
     h('h4',{style:'margin-top:12px',text:'Vistas'}),h('div',{class:'tabs'},sibV.map(x=>h('button',{class:'tab'+(x.img?'':' miss'),type:'button','aria-pressed':String(x===s),onclick:()=>openV(x.id)},h('span',{class:'dot '+ST[stOf(x)][1]}),VIEWS[x.vi][2]))),
     h('h4',{style:'margin-top:12px',text:`Acabados (${sibF.length})`}),h('div',{class:'tabs'},sibF.map(x=>h('button',{class:'tab'+(x.img?'':' miss'),type:'button','aria-pressed':String(x===s),title:x.sku,onclick:()=>openV(x.id)},sw(x.fin),x.fin))),
-    s.img&&s.img.vs?h('div',null,h('h4',{style:'margin-top:12px',text:'Versiones'}),h('div',{class:'tabs'},s.img.vs.map(v=>h('button',{class:'tab',type:'button','aria-pressed':String(V.ver===v[0]&&!V.ref),onclick:()=>{V.ver=v[0];V.ref=false;showImg();renderPanel();}},'v'+v[0]+' · '+v[1].slice(8)+'/'+v[1].slice(5,7)+(v[0]===s.img.v?' (actual)':''))))):null].filter(Boolean));
+    s.img&&s.img.vs?h('div',null,h('h4',{style:'margin-top:12px',text:'Versiones'}),h('div',{class:'tabs'},s.img.vs.map(v=>h('button',{class:'tab',type:'button','aria-pressed':String(V.ver===v[0]&&!V.ref),onclick:()=>{V.ver=v[0];V.ref=false;showImg();renderPanel();}},(okV(s)===v[0]?'✓ ':'')+'v'+v[0]+' · '+v[1].slice(8)+'/'+v[1].slice(5,7)+(v[0]===s.img.v?' (actual)':'')+(s.img.r&&s.img.r[v[0]]?' · retocada':''))))):null].filter(Boolean));
   const c=cms(s),open=c.filter(x=>isChg(x)&&!x.done);const cur=stOf(s);
-  const box=h('div',{class:'stbox'},h('div',{class:'now'},h('span',{class:'dot '+st[1]}),st[0],s.img?h('span',{class:'m',style:'font-weight:400',text:' · v'+s.img.v+' del '+s.img.d.slice(8)+'/'+s.img.d.slice(5,7)}):null));
+  const box=h('div',{class:'stbox'},h('div',{class:'now'},h('span',{class:'dot '+st[1]}),st[0],s.img?h('span',{class:'m',style:'font-weight:400',text:(okV(s)&&okV(s)!==s.img.v?' · OK a la v'+okV(s)+' (la última es la v'+s.img.v+')':' · v'+s.img.v+' del '+s.img.d.slice(8)+'/'+s.img.d.slice(5,7))}):null));
   if(s.img){
     if(V.cf)box.append(h('div',{class:'cf'},`Hay ${open.length} cambio${open.length>1?'s':''} sin resolver. Si das el OK se marcan como retirados.`,h('div',{class:'acts'},
-      h('button',{class:'vb ok sm',type:'button',onclick:async()=>{V.cf=false;for(const x of open)await patchCm(s,x.id,{done:true,doneAt:Date.now(),doneV:s.img.v,note:'Retirado al dar el OK'});await setOk(s,true);toast('OK guardado.');}},'Dar OK igualmente'),
+      h('button',{class:'vb ok sm',type:'button',onclick:async()=>{V.cf=false;for(const x of open)await patchCm(s,x.id,{done:true,doneAt:Date.now(),doneV:s.img.v,note:'Retirado al dar el OK'});await setOk(s,true,V.ver);toast('OK guardado a la v'+V.ver+'.');}},'Dar OK igualmente'),
       h('button',{class:'vb sm',type:'button',onclick:()=>{V.cf=false;renderPanel();}},'Cancelar'))));
     else box.append(h('div',{class:'acts'},cur==='ok'?h('button',{class:'vb',type:'button',onclick:()=>setOk(s,false)},'Quitar el OK')
-      :h('button',{class:'vb ok',type:'button',onclick:()=>{if(open.length){V.cf=true;renderPanel();}else setOk(s,true).then(()=>toast('OK guardado.'));}},ico('M5 12.5l4.5 4.5L19 7.5'),'Dar OK a esta imagen'),
+      :h('button',{class:'vb ok',type:'button',onclick:()=>{if(open.length){V.cf=true;renderPanel();}else setOk(s,true,V.ver).then(()=>toast('OK guardado a la v'+V.ver+'.'));}},ico('M5 12.5l4.5 4.5L19 7.5'),V.ver===s.img.v?'Dar OK a esta imagen':'Dar OK a la v'+V.ver+' (anterior)'),
       list.length>1?h('button',{class:'vb',type:'button',onclick:()=>step(1)},'Siguiente'):null));
     if(cur==='corregida')box.append(h('p',{class:'hint',text:'El estudio ha aplicado los cambios pedidos. Revisa la imagen y da el OK o pide otro cambio.'}));
+    if(s.img.vs&&cur!=='ok')box.append(h('p',{class:'hint',text:'El OK se da a la versión que estás viendo. Si prefieres una versión anterior, ábrela en «Versiones» y da el OK desde ahí.'}));
+    if(cur==='ok'&&okV(s)!==V.ver)box.append(h('div',{class:'acts'},h('button',{class:'vb sm',type:'button',onclick:()=>setOk(s,true,V.ver).then(()=>toast('El OK pasa a la v'+V.ver+'.'))},'Pasar el OK a la v'+V.ver)));
+    if(isAdmin&&mode==='db')box.append(h('div',{class:'acts adm'},
+      h('a',{class:'vb sm',href:`cosmic://abrir/${s.id}/v${V.ver}`,title:'Abre la carpeta del PC del estudio con el archivo de esta versión seleccionado (la 4K si existe)'},'Abrir en el explorador (v'+V.ver+')'),
+      h('a',{class:'vb sm',href:`cosmic://refrescar/${s.id}/v${V.ver}`,title:'Sube el archivo retocado sin crear versión nueva',onclick:()=>watchCat(s.id)},'Refrescar retoque')));
   }else box.append(h('p',{class:'hint',text:'Esta imagen todavía no está creada. Aparecerá aquí cuando el estudio la suba.'}));
   $('#pStatus').replaceChildren(box);
   $('#pCms').replaceChildren(...(c.length?c.map((x,i)=>h('div',{class:'cmt'+(x.done&&isChg(x)?' done':'')+(V.sel===x.id?' sel':'')+(isChg(x)?'':' com')+(x.priv?' priv':'')},
@@ -756,6 +765,11 @@ async function loadApp(){
     loadAccess();
   }catch(e){console.error(e);$('#ptxt').textContent='No se ha podido cargar el catálogo. Recarga la página.';}
 }
+async function watchCat(id){toast('Actualizando el retoque… tarda unos segundos.');const old=JSON.stringify(CAT.img[id]||{});
+  for(let i=0;i<40;i++){await new Promise(r=>setTimeout(r,3000));
+    try{const u=await signed('data/catalog.json');const c=await(await fetch(u,{cache:'no-store'})).json();
+      if(JSON.stringify(c.img[id]||{})!==old){CAT=c;SLOTS.forEach(o=>{o.img=CAT.img[o.id]||null;});await signSprites();refresh(true);if(V.cur){showImg();renderPanel();}toast('Retoque actualizado.');return;}}catch(e){}}
+  toast('No ha llegado ningún cambio. ¿Has guardado el archivo?');}
 function fromHash(){const id=location.hash.slice(1).replace(/-closeup-0/,'_closeup_0').replace(/-despiece$/,'_despiece').replace(/-ambiente$/,'_ambiente');if(id&&BYID[id]){if(!V.cur||V.cur.id!==id)openV(id,true);}}
 function init(){
   if(!window.supabase||CFG.url.indexOf('__')===0){$('#authCard').append(h('p',{class:'aerr',text:'Falta configurar la conexión con la base de datos.'}));return;}
