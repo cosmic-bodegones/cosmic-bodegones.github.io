@@ -542,7 +542,7 @@ function showImg(){
   $('#vHi').title=okHd?'Alta resolución (3580×4475)':'Esta imagen aún no tiene versión 4K';
   $('#vLo').setAttribute('aria-pressed',String(!(V.hd&&okHd)));$('#vHi').setAttribute('aria-pressed',String(V.hd&&okHd));
   const tag=$('#vTag');
-  if(V.ref){vimg.hidden=false;setSrc(`ref/${s.sku}.jpg`);wrap.classList.remove('none');tag.hidden=false;tag.textContent='Foto de producto original (referencia de acabado)';cv.hidden=true;}
+  if(V.ref){vimg.hidden=false;const rv=(CAT.refv||{})[s.sku];setSrc(`ref/${s.sku}${rv?'.r'+rv:''}.jpg`);wrap.classList.remove('none');tag.hidden=false;tag.textContent=rv?'Foto de producto (acabado igualado a los close-ups)':'Foto de producto original (referencia de acabado)';cv.hidden=true;}
   else if(s.img){vimg.hidden=false;wrap.classList.remove('none');cv.hidden=false;
     tag.hidden=V.ver===s.img.v;tag.textContent=`Versión anterior (v${V.ver}). La actual es la v${s.img.v}.`+(okV(s)===V.ver?' Tiene el OK.':'');
     setSrc(ip('img',s,V.ver),V.hd&&hasHd(s,V.ver)?ip('hd',s,V.ver):null);}
